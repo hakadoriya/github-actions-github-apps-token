@@ -1,0 +1,52 @@
+name: github-actions-github-apps-token
+# MEMO: Description must be less than 125 characters.
+description: 'A GitHub Action to get a GitHub Apps token'
+author: 'hakadoriya'
+
+branding:
+  icon: search
+  color: gray-dark
+
+inputs:
+  app-id:
+    description: 'The ID of the GitHub App.'
+    required: true
+  private-key:
+    description: 'The private key of the GitHub App.'
+    required: true
+
+outputs:
+  token:
+    value: ${{ steps.generate-apps-token.outputs.token }}
+    description: 'The GitHub Apps token.'
+
+runs:
+  using: composite
+  steps:
+    - name: generate-apps-token
+      id: generate-apps-token
+      env:
+        APP_ID: ${{ inputs.app-id }}
+        PRIVATE_KEY: ${{ inputs.private-key }}
+      shell: 'bash'
+      run: |
+        ./.bin/generate-apps-token
+    - name: DEBUG
+      if: always() && ${{ inputs.debug == 'true' }}
+      shell: bash
+      run: |
+        cat <<'DEBUG_DOC'
+        == DEBUG =======================================================
+        -- inputs -----------------------------------------------------
+        before: ${{ inputs.before }}
+        after: ${{ inputs.after }}
+        base-ref: ${{ inputs.base-ref }}
+        head-ref: ${{ inputs.head-ref }}
+        paths-ignore: ${{ inputs.paths-ignore }}
+        -- github -----------------------------------------------------
+        github.event_name: ${{ github.event_name }}
+        github.ref: ${{ github.ref }}
+        -- toJSON(github) ----------------------------------------------
+        ${{ toJSON(github) }}
+        ================================================================
+        DEBUG_DOC
