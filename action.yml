@@ -14,6 +14,10 @@ inputs:
   private-key:
     description: 'The private key of the GitHub App.'
     required: true
+  jwt-expiry-seconds:
+    description: 'The expiry seconds of the JWT. 600 seconds maximum. (default: 300)'
+    default: "300"
+    required: false
 
 outputs:
   token:
@@ -28,9 +32,55 @@ runs:
       env:
         CLIENT_ID: ${{ inputs.client-id }}
         PRIVATE_KEY: ${{ inputs.private-key }}
-      shell: 'bash'
+        JWT_EXPIRY_SECONDS: ${{ inputs.jwt-expiry-seconds }}
+      shell: bash
       run: |
-        ./.bin/generate-apps-token
+        set -Eeu -o pipefail
+        # base64url
+        base64url() {
+          openssl enc -base64 -A | tr '+/' '-_' | tr -d '='
+        }
+        # sign
+        sign() {
+          openssl dgst -binary -sha256 -sign <(printf '%s' "${PRIVATE_KEY:?}")
+        }
+        # JWT header
+        header=$(printf '{"alg":"RS256","typ":"JWT"}' | base64url)
+        # JWT payload
+        now=$(date '+%s')
+        iat=${now}
+        exp=$((now + JWT_EXPIRY_SECONDS))
+        payload=$(printf '{"iss":"%s","iat":%s,"exp":%s}' "${CLIENT_ID}" "${iat}" "${exp}" | base64url)
+        echo "::add-mask::${payload}"
+        # JWT signature
+        signature=$(printf '%s' "${header}.${payload}" | sign | base64url)
+        echo "::add-mask::${signature}"
+        # JWT
+        jwt="${header}.${payload}.${signature}"
+        echo "::add-mask::${jwt}"
+        # Get the repository installation ID
+        installation_id=$(
+          curl --location --silent --request GET \
+            --url "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/installation" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --header "Authorization: Bearer ${jwt}" \
+            | jq -r '.id'
+        )
+        # Get the GitHub Apps token
+        repo_name=$(echo "${GITHUB_REPOSITORY}" | cut -d '/' -f 2)
+        token=$(
+          curl --location --silent --request POST \
+            --url "${GITHUB_API_URL}/app/installations/${installation_id}/access_tokens" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --header "Authorization: Bearer ${jwt}" \
+            --data "$(printf '{"repositories":["%s"]}' "${repo_name}")" \
+            | jq -r '.token'
+        )
+        echo "::add-mask::${token}"
+        echo "token=${token}" >>"${GITHUB_OUTPUT}"
+
     - name: DEBUG
       if: always() && ${{ inputs.debug == 'true' }}
       shell: bash
