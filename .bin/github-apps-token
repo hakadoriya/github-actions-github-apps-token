@@ -12,9 +12,9 @@ sign() {
 header="$(printf '{"alg":"RS256","typ":"JWT"}' | base64url)"
 now="$(date '+%s')"
 iat="$((now - 60))"
-exp="$((now + (5 * 60)))"  # 5 minutes
+exp="$((now + (5 * 60)))"  # 5 minutes (10 minute maximum)
 template='{"iss":"%s","iat":%s,"exp":%s}'
-payload="$(printf "${template}" "${APP_ID}" "${iat}" "${exp}" | base64url)"
+payload="$(printf "${template}" "${CLIENT_ID}" "${iat}" "${exp}" | base64url)"
 echo "::add-mask::${payload}"
 signature="$(printf '%s' "${header}.${payload}" | sign | base64url)"
 echo "::add-mask::${signature}"
