@@ -15,8 +15,8 @@ inputs:
     description: 'The private key of the GitHub App.'
     required: true
   jwt-expiry-seconds:
-    description: 'The expiry seconds of the JWT. 600 seconds maximum. (default: 300)'
-    default: "300"
+    description: 'The expiry seconds of the JWT. 600 seconds maximum. (default: 600)'
+    default: "600"
     required: false
 
 outputs:
