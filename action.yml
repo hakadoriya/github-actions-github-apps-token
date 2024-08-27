@@ -34,6 +34,7 @@ runs:
         PRIVATE_KEY: ${{ inputs.private-key }}
         JWT_EXPIRY_SECONDS: ${{ inputs.jwt-expiry-seconds }}
       shell: bash
+      # ref. https://zenn.dev/tmknom/articles/github-apps-token
       run: |
         set -Eeu -o pipefail
         # base64url
@@ -59,40 +60,44 @@ runs:
         jwt="${header}.${payload}.${signature}"
         echo "::add-mask::${jwt}"
         # Get the repository installation ID
-        installation_id=$(
+        installation_response_body=$(
           curl --location --silent --request GET \
             --url "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/installation" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            --header "Authorization: Bearer ${jwt}" \
-            | jq -r '.id'
+            --header "Authorization: Bearer ${jwt}"
         )
+        installation_id=$(jq -r '.id' <<<"${installation_response_body-}")
+        if [[ "${installation_id:-}" = null ]]; then
+          echo "::error::Failed to get the installation ID."
+          echo "${installation_response_body-}" | sed 's/^/::error::/'
+          exit 1
+        fi
         # Get the GitHub Apps token
         repo_name=$(echo "${GITHUB_REPOSITORY}" | cut -d '/' -f 2)
-        token=$(
+        token_response_body=$(
           curl --location --silent --request POST \
             --url "${GITHUB_API_URL}/app/installations/${installation_id}/access_tokens" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --header "Authorization: Bearer ${jwt}" \
-            --data "$(printf '{"repositories":["%s"]}' "${repo_name}")" \
-            | jq -r '.token'
+            --data "$(printf '{"repositories":["%s"]}' "${repo_name}")"
         )
+        token=$(jq -r '.token' <<<"${token_response_body-}")
+        if [[ "${token:-}" = null ]]; then
+          echo "::error::Failed to get the GitHub Apps token."
+          echo "${token_response_body-}" | sed 's/^/::error::/'
+          exit 1
+        fi
         echo "::add-mask::${token}"
         echo "token=${token}" >>"${GITHUB_OUTPUT}"
 
     - name: DEBUG
-      if: always() && ${{ inputs.debug == 'true' }}
+      if: always() && inputs.debug == 'true'
       shell: bash
       run: |
         cat <<'DEBUG_DOC'
         == DEBUG =======================================================
-        -- inputs -----------------------------------------------------
-        before: ${{ inputs.before }}
-        after: ${{ inputs.after }}
-        base-ref: ${{ inputs.base-ref }}
-        head-ref: ${{ inputs.head-ref }}
-        paths-ignore: ${{ inputs.paths-ignore }}
         -- github -----------------------------------------------------
         github.event_name: ${{ github.event_name }}
         github.ref: ${{ github.ref }}
