@@ -69,7 +69,7 @@ runs:
         )
         installation_id=$(jq -r '.id' <<<"${installation_response_body-}")
         if [[ "${installation_id:-}" = null ]]; then
-          echo "::error::Failed to get the installation ID."
+          echo "::error::Failed to get the installation ID:"
           echo "${installation_response_body-}" | sed 's/^/::error::/'
           exit 1
         fi
@@ -85,13 +85,12 @@ runs:
         )
         token=$(jq -r '.token' <<<"${token_response_body-}")
         if [[ "${token:-}" = null ]]; then
-          echo "::error::Failed to get the GitHub Apps token."
+          echo "::error::Failed to get the GitHub Apps token:"
           echo "${token_response_body-}" | sed 's/^/::error::/'
           exit 1
         fi
         echo "::add-mask::${token}"
         echo "token=${token}" >>"${GITHUB_OUTPUT}"
-
     - name: DEBUG
       if: always() && inputs.debug == 'true'
       shell: bash
