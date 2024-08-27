@@ -17,6 +17,7 @@
         with:
           client-id: ${{ secrets.GH_APPS_CLIENT_ID }}
           private-key: ${{ secrets.GH_APPS_PRIVATE_KEY }}
+          jwt-expiry-seconds: 300
       - name: "Run steps that require a GitHub token"
         env:
           GITHUB_TOKEN: ${{ steps.github-apps-token.outputs.token }}
