@@ -5,8 +5,8 @@
 - If creating a personal GitHub App,
   - <https://github.com/settings/apps/new>
 - If creating an organization GitHub App,
-  - <https://github.com/organizations/__ORGANIZATION__/settings/apps/new>
-- If not needed, please remove the `Active` check from the Webhook.
+  - <https://github.com/organizations/ORGANIZATION/settings/apps/new>
+- If not needed, remove the `Active` check from `Webhook`.
 
 ## example
 
