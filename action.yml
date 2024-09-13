@@ -18,6 +18,9 @@ inputs:
     description: 'The expiry seconds of the JWT. 600 seconds maximum. (default: 600)'
     default: "600"
     required: false
+  api-app-installations-access-tokens-request-body:
+    description: 'The request body for the API to get the access tokens. (default: "")'
+    required: false
 
 outputs:
   token:
@@ -33,6 +36,7 @@ runs:
         CLIENT_ID: ${{ inputs.client-id }}
         PRIVATE_KEY: ${{ inputs.private-key }}
         JWT_EXPIRY_SECONDS: ${{ inputs.jwt-expiry-seconds }}
+        API_APP_INSTALLATIONS_ACCESS_TOKENS_REQUEST_BODY: ${{ inputs.api-app-installations-access-tokens-request-body }}
       shell: bash
       # ref. https://zenn.dev/tmknom/articles/github-apps-token
       run: |
@@ -49,23 +53,23 @@ runs:
         header=$(printf '{"alg":"RS256","typ":"JWT"}' | base64url)
         # JWT payload
         now=$(date '+%s')
-        iat=${now}
+        iat=${now:?}
         exp=$((now + JWT_EXPIRY_SECONDS))
-        payload=$(printf '{"iss":"%s","iat":%s,"exp":%s}' "${CLIENT_ID}" "${iat}" "${exp}" | base64url)
-        echo "::add-mask::${payload}"
+        payload=$(printf '{"iss":"%s","iat":%s,"exp":%s}' "${CLIENT_ID:?}" "${iat:?}" "${exp:?}" | base64url)
+        echo "::add-mask::${payload:?}"
         # JWT signature
-        signature=$(printf '%s' "${header}.${payload}" | sign | base64url)
-        echo "::add-mask::${signature}"
+        signature=$(printf '%s' "${header:?}.${payload:?}" | sign | base64url)
+        echo "::add-mask::${signature:?}"
         # JWT
-        jwt="${header}.${payload}.${signature}"
-        echo "::add-mask::${jwt}"
+        jwt="${header:?}.${payload:?}.${signature:?}"
+        echo "::add-mask::${jwt:?}"
         # Get the repository installation ID
         installation_response_body=$(
           curl --location --silent --request GET \
-            --url "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/installation" \
+            --url "${GITHUB_API_URL:?}/repos/${GITHUB_REPOSITORY:?}/installation" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            --header "Authorization: Bearer ${jwt}"
+            --header "Authorization: Bearer ${jwt:?}"
         )
         installation_id=$(jq -r '.id' <<<"${installation_response_body-}")
         if [[ "${installation_id:-}" = null ]]; then
@@ -74,23 +78,23 @@ runs:
           exit 1
         fi
         # Get the GitHub Apps token
-        repo_name=$(echo "${GITHUB_REPOSITORY}" | cut -d '/' -f 2)
+        repo_name=$(echo "${GITHUB_REPOSITORY:?}" | cut -d '/' -f 2)
         token_response_body=$(
           curl --location --silent --request POST \
-            --url "${GITHUB_API_URL}/app/installations/${installation_id}/access_tokens" \
+            --url "${GITHUB_API_URL:?}/app/installations/${installation_id:?}/access_tokens" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            --header "Authorization: Bearer ${jwt}" \
-            --data "$(printf '{"repositories":["%s"]}' "${repo_name}")"
+            --header "Authorization: Bearer ${jwt:?}" \
+            --data "${ACCESS_TOKENS_REQUEST_BODY-}"
         )
         token=$(jq -r '.token' <<<"${token_response_body-}")
-        if [[ "${token:-}" = null ]]; then
+        if [[ "${token-}" = null ]]; then
           echo "::error::Failed to get the GitHub Apps token:"
           echo "${token_response_body-}" | sed 's/^/::error::/'
           exit 1
         fi
-        echo "::add-mask::${token}"
-        echo "token=${token}" >>"${GITHUB_OUTPUT}"
+        echo "::add-mask::${token-}"
+        echo "token=${token-}" >>"${GITHUB_OUTPUT:?}"
     - name: DEBUG
       if: always() && inputs.debug == 'true'
       shell: bash
